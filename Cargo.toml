@@ -1,0 +1,8 @@
+[package]
+name = "drum"
+version = "0.1.0"
+authors = ["Jaye Marshall <marshall.jaye@gmail.com>"]
+
+[dependencies]
+bincode = "*"
+rustc-serialize = "*"
