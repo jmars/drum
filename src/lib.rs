@@ -115,9 +115,9 @@ fn insert_get() {
     string: String::from("testing")
   };
   let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  let mut store: Store<String, Test, Cursor<Vec<u8>>> = Store::new(buffer);
-  store.insert(String::from("foo"), test.clone()).unwrap();
-  let val = store.get(&String::from("foo")).unwrap().unwrap();
+  let mut store: Store<Vec<String>, Test, Cursor<Vec<u8>>> = Store::new(buffer);
+  store.insert(vec![String::from("foo"), String::from("bar")], test.clone()).unwrap();
+  let val = store.get(&vec![String::from("foo"), String::from("bar")]).unwrap().unwrap();
   assert_eq!(test, val);
 }
 
