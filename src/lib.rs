@@ -135,6 +135,15 @@ fn insert_remove() {
 }
 
 #[test]
+fn multiple_insert() {
+  let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+  let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+  store.insert(String::from("foo"), 100).unwrap();
+  store.insert(String::from("bar"), 200).unwrap();
+  assert_eq!(store.get(&String::from("bar")).unwrap().unwrap(), 200);
+}
+
+#[test]
 fn keys() {
   let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
   let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
