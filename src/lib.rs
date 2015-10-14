@@ -10,7 +10,7 @@ use std::hash::Hash;
 use std::cell::RefCell;
 use rustc_serialize::{Encodable, Decodable};
 use bincode::SizeLimit;
-use bincode::rustc_serialize::{encode_into, encoded_size, decode};
+use bincode::rustc_serialize::*;
 
 #[derive(RustcEncodable, RustcDecodable)]
 struct Entry<K, V> {
@@ -18,17 +18,12 @@ struct Entry<K, V> {
   value: V
 }
 
-pub struct Location {
-  start: u64,
-  size: usize
-}
-
 pub struct Store<K, V, F> {
   file: RefCell<F>,
-  keys: HashMap<K, Location>,
+  keys: HashMap<K, u64>,
   data: PhantomData<V>,
-  buffer: RefCell<Option<Vec<u8>>>,
-  offset: u64
+  offset: u64,
+  entries: u64,
 }
 
 impl<K, V, F> Store<K, V, F>
@@ -37,33 +32,75 @@ where K: Eq + Hash + Encodable + Decodable,
       F: Read + Write + Seek
 {
   pub fn new(target: F) -> Store<K, V, F> {
+    let header_size = encoded_size(&0u64);
     Store {
       file: RefCell::new(target),
       keys: HashMap::new(),
       data: PhantomData,
-      buffer: RefCell::new(Some(Vec::new())),
-      offset: 0
+      offset: header_size,
+      entries: 0
     }
   } 
 
+  pub fn reopen(target: F) -> Result<Store<K, V, F>> {
+    let mut store: Store<K, V, F> = Store::new(target);
+    try!(store.build_keys());
+    Ok(store)
+  }
+
+  fn build_keys(&mut self) -> Result<()> {
+    let mut file = self.file.borrow_mut();
+    try!(file.seek(SeekFrom::Start(0)));
+    let entries = decode_from::<F, u64>(&mut *file, SizeLimit::Infinite).unwrap_or(0);
+    self.entries = entries;
+    for _ in 0..entries {
+      try!(file.seek(SeekFrom::Start(self.offset)));
+      let entry = decode_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
+      let size = encoded_size(&entry) as i64;
+      self.keys.insert(entry.key, self.offset);
+      self.offset = self.offset + size as u64;
+    }
+    try!(file.seek(SeekFrom::End(0)));
+    Ok(())
+  }
+
+  fn add_entry(&mut self) -> Result<()> {
+    self.entries = self.entries + 1;
+    let data = encode(&self.entries, SizeLimit::Infinite);
+    match data {
+      Ok(data) => {
+        let mut file = self.file.borrow_mut();
+        try!(file.seek(SeekFrom::Start(0)));
+        try!(file.write_all(&data));
+        try!(file.seek(SeekFrom::Start(self.offset)));
+        Ok(())
+      },
+      Err(_) => Ok(())
+    }
+  }
+
   pub fn insert(&mut self, key: K, value: V) -> Result<Option<V>> {
     let previous = try!(self.get(&key));
+    match previous {
+      Some(_) => {},
+      None => {
+        let _ = self.add_entry();
+      }
+    }
+
     let entry = Entry {
       key: key,
       value: value
     };
+
     let mut file = self.file.borrow_mut();
-    let buf = self.buffer.borrow_mut().take().unwrap();
-    let mut encoded = Cursor::new(buf);
-    encode_into(&entry, &mut encoded, SizeLimit::Infinite).unwrap();
-    let buf = encoded.into_inner();
+    try!(file.seek(SeekFrom::End(0)));
+    encode_into(&entry, &mut *file, SizeLimit::Infinite).unwrap_or(());
+
     let start = self.offset;
     let size = encoded_size(&entry) as usize;
     self.offset = self.offset + size as u64;
-    // TODO put buffer back on fail
-    try!(file.write_all(&buf[..size]));
-    self.keys.insert(entry.key, Location { start: start, size: size });
-    *self.buffer.borrow_mut() = Some(buf);
+    self.keys.insert(entry.key, start);
     match previous {
       Some(prev) => Ok(Some(prev)),
       None => Ok(None)
@@ -74,13 +111,10 @@ where K: Eq + Hash + Encodable + Decodable,
     let location = self.keys.get(key);
     match location {
       Some(loc) => {
-        let mut buffer = self.buffer.borrow_mut();
-        let buf = &mut buffer.as_mut().unwrap()[..loc.size];
         let mut file = self.file.borrow_mut();
-        try!(file.seek(SeekFrom::Start(loc.start)));
-        try!(file.read(buf));
+        try!(file.seek(SeekFrom::Start(*loc)));
+        let entry = decode_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
         try!(file.seek(SeekFrom::End(0)));
-        let entry: Entry<K, V> = decode(buf).unwrap();
         Ok(Some(entry.value))
       }
       None => Ok(None)
@@ -98,7 +132,7 @@ where K: Eq + Hash + Encodable + Decodable,
     }
   }
 
-  pub fn keys<'a>(&'a self) -> Keys<'a, K, Location> {
+  pub fn keys<'a>(&'a self) -> Keys<'a, K, u64> {
     self.keys.keys()
   }
 }
@@ -140,7 +174,7 @@ fn multiple_insert() {
   let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
   store.insert(String::from("foo"), 100).unwrap();
   store.insert(String::from("bar"), 200).unwrap();
-  assert_eq!(store.get(&String::from("bar")).unwrap().unwrap(), 200);
+  assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 100);
 }
 
 #[test]
@@ -151,4 +185,22 @@ fn keys() {
   for key in store.keys() {
     assert_eq!(*key, String::from("foo"));
   }
+}
+
+#[test]
+fn reopen() {
+  let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+  {
+    let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+    store.insert(String::from("foo"), 50).unwrap();
+    buffer = store.file.into_inner();
+  }
+
+  let store: Store<String, u64, Cursor<Vec<u8>>> = Store::reopen(buffer).unwrap();
+
+  for key in store.keys() {
+    assert_eq!(*key, String::from("foo"));
+  };
+
+  assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 50);
 }
