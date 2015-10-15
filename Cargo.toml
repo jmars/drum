@@ -4,6 +4,8 @@ version = "0.2.1"
 authors = ["Jaye Marshall <marshall.jaye@gmail.com>"]
 description = "A bitcask inspired storage api for rust."
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/jmars/drum.git"
 
 [dependencies]
 bincode = "0.4.*"
@@ -11,3 +13,4 @@ rustc-serialize = "0.3.*"
 
 [dev-dependencies]
 tempfile = "1.1.*"
+bufstream = { git = "https://github.com/jmars/bufstream.git" }

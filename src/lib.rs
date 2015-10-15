@@ -97,6 +97,7 @@ where K: Eq + Hash + Encodable + Decodable,
     let mut file = self.file.borrow_mut();
     try!(file.seek(SeekFrom::End(0)));
     encode_into(&entry, &mut *file, SizeLimit::Infinite).unwrap_or(());
+    try!(file.flush());
 
     let start = self.offset;
     let size = encoded_size(&entry) as usize;
@@ -142,11 +143,13 @@ where K: Eq + Hash + Encodable + Decodable,
 mod tests {
   extern crate test;
   extern crate tempfile;
+  extern crate bufstream;
 
   use super::*;
   use std::io::*;
   use self::test::Bencher;
   use self::tempfile::TempFile;
+  use self::bufstream::BufStream;
 
   #[test]
   fn insert_get() {
@@ -239,20 +242,21 @@ mod tests {
   #[bench]
   fn bench_file_insert(b: &mut Bencher) {
     let buffer = TempFile::new().unwrap();
-    let mut store: Store<String, u64, TempFile> = Store::new(buffer);
+    let writer = BufStream::new(buffer);
+    let mut store: Store<u64, u64, BufStream<TempFile>> = Store::new(writer);
     b.iter(|| {
-      store.insert(String::from("foo"), 50).unwrap()
+      let _ = store.insert(10, 50);
     });
   }
 
   #[bench]
   fn bench_file_get(b: &mut Bencher) {
     let buffer = TempFile::new().unwrap();
-    let mut store: Store<String, u64, TempFile> = Store::new(buffer);
-    store.insert(String::from("foo"), 50).unwrap();
-    let key = String::from("foo");
+    let reader = BufStream::new(buffer);
+    let mut store: Store<u64, u64, BufStream<TempFile>> = Store::new(reader);
+    store.insert(10, 50).unwrap();
     b.iter(|| {
-      store.get(&key).unwrap().unwrap()
+      let _ = store.get(&10);
     });
   }
 }
