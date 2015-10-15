@@ -28,7 +28,9 @@ fn run() -> Result<()> {
     println!("{}", key)
   }
 
-  let previous = try!(store.insert(
+  let previous = try!(store.get(&String::from("Hello WOrld")));
+
+  try!(store.insert(
     String::from("Hello World"),
     Value::Array(vec![Value::Number(100)]))
   );

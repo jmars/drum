@@ -1,6 +1,6 @@
 [package]
 name = "drum"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Jaye Marshall <marshall.jaye@gmail.com>"]
 description = "A bitcask inspired storage api for rust."
 license = "MIT"

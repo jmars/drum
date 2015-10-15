@@ -80,14 +80,8 @@ where K: Eq + Hash + Encodable + Decodable,
     }
   }
 
-  pub fn insert(&mut self, key: K, value: V) -> Result<Option<V>> {
-    let previous = try!(self.get(&key));
-    match previous {
-      Some(_) => {},
-      None => {
-        let _ = self.add_entry();
-      }
-    }
+  pub fn insert(&mut self, key: K, value: V) -> Result<()> {
+    try!(self.add_entry());
 
     let entry = Entry {
       key: key,
@@ -103,10 +97,7 @@ where K: Eq + Hash + Encodable + Decodable,
     let size = encoded_size(&entry) as usize;
     self.offset = self.offset + size as u64;
     self.keys.insert(entry.key, start);
-    match previous {
-      Some(prev) => Ok(Some(prev)),
-      None => Ok(None)
-    }
+    Ok(())
   }
 
   pub fn get(&self, key: &K) -> Result<Option<V>> {
