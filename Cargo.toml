@@ -1,6 +1,6 @@
 [package]
 name = "drum"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jaye Marshall <marshall.jaye@gmail.com>"]
 description = "A bitcask inspired storage api for rust."
 license = "MIT"
@@ -8,3 +8,6 @@ license = "MIT"
 [dependencies]
 bincode = "0.4.*"
 rustc-serialize = "0.3.*"
+
+[dev-dependencies]
+tempfile = "1.1.*"

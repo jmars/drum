@@ -1,3 +1,4 @@
+#![feature(test)]
 extern crate bincode;
 extern crate rustc_serialize;
 
@@ -137,70 +138,121 @@ where K: Eq + Hash + Encodable + Decodable,
   }
 }
 
-#[test]
-fn insert_get() {
-  #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
-  struct Test {
-    num: u64,
-    string: String
+#[cfg(test)]
+mod tests {
+  extern crate test;
+  extern crate tempfile;
+
+  use super::*;
+  use std::io::*;
+  use self::test::Bencher;
+  use self::tempfile::TempFile;
+
+  #[test]
+  fn insert_get() {
+    #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
+    struct Test {
+      num: u64,
+      string: String
+    }
+    let test = Test {
+      num: 42,
+      string: String::from("testing")
+    };
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    let mut store: Store<Vec<String>, Test, Cursor<Vec<u8>>> = Store::new(buffer);
+    store.insert(vec![String::from("foo"), String::from("bar")], test.clone()).unwrap();
+    let val = store.get(&vec![String::from("foo"), String::from("bar")]).unwrap().unwrap();
+    assert_eq!(test, val);
   }
-  let test = Test {
-    num: 42,
-    string: String::from("testing")
-  };
-  let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  let mut store: Store<Vec<String>, Test, Cursor<Vec<u8>>> = Store::new(buffer);
-  store.insert(vec![String::from("foo"), String::from("bar")], test.clone()).unwrap();
-  let val = store.get(&vec![String::from("foo"), String::from("bar")]).unwrap().unwrap();
-  assert_eq!(test, val);
-}
 
-#[test]
-fn insert_remove() {
-  let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
-  store.insert(String::from("foo"), 100).unwrap();
-  assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 100);
-  store.remove(&String::from("foo")).unwrap();
-  match store.get(&String::from("foo")).unwrap() {
-    None => assert!(true),
-    Some(_) => assert!(false)
+  #[test]
+  fn insert_remove() {
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+    store.insert(String::from("foo"), 100).unwrap();
+    assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 100);
+    store.remove(&String::from("foo")).unwrap();
+    match store.get(&String::from("foo")).unwrap() {
+      None => assert!(true),
+      Some(_) => assert!(false)
+    }
   }
-}
 
-#[test]
-fn multiple_insert() {
-  let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
-  store.insert(String::from("foo"), 100).unwrap();
-  store.insert(String::from("bar"), 200).unwrap();
-  assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 100);
-}
-
-#[test]
-fn keys() {
-  let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
-  store.insert(String::from("foo"), 50).unwrap();
-  for key in store.keys() {
-    assert_eq!(*key, String::from("foo"));
+  #[test]
+  fn multiple_insert() {
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+    store.insert(String::from("foo"), 100).unwrap();
+    store.insert(String::from("bar"), 200).unwrap();
+    assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 100);
   }
-}
 
-#[test]
-fn reopen() {
-  let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-  {
+  #[test]
+  fn keys() {
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
     let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
     store.insert(String::from("foo"), 50).unwrap();
-    buffer = store.file.into_inner();
+    for key in store.keys() {
+      assert_eq!(*key, String::from("foo"));
+    }
   }
 
-  let store: Store<String, u64, Cursor<Vec<u8>>> = Store::reopen(buffer).unwrap();
+  #[test]
+  fn reopen() {
+    let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    {
+      let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+      store.insert(String::from("foo"), 50).unwrap();
+      buffer = store.file.into_inner();
+    }
 
-  for key in store.keys() {
-    assert_eq!(*key, String::from("foo"));
-  };
+    let store: Store<String, u64, Cursor<Vec<u8>>> = Store::reopen(buffer).unwrap();
 
-  assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 50);
+    for key in store.keys() {
+      assert_eq!(*key, String::from("foo"));
+    };
+
+    assert_eq!(store.get(&String::from("foo")).unwrap().unwrap(), 50);
+  }
+
+  #[bench]
+  fn bench_insert(b: &mut Bencher) {
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+    b.iter(|| {
+      store.insert(String::from("foo"), 50).unwrap()
+    });
+  }
+
+  #[bench]
+  fn bench_get(b: &mut Bencher) {
+    let buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    let mut store: Store<String, u64, Cursor<Vec<u8>>> = Store::new(buffer);
+    store.insert(String::from("foo"), 50).unwrap();
+    let key = String::from("foo");
+    b.iter(|| {
+      store.get(&key).unwrap().unwrap()
+    });
+  }
+
+  #[bench]
+  fn bench_file_insert(b: &mut Bencher) {
+    let buffer = TempFile::new().unwrap();
+    let mut store: Store<String, u64, TempFile> = Store::new(buffer);
+    b.iter(|| {
+      store.insert(String::from("foo"), 50).unwrap()
+    });
+  }
+
+  #[bench]
+  fn bench_file_get(b: &mut Bencher) {
+    let buffer = TempFile::new().unwrap();
+    let mut store: Store<String, u64, TempFile> = Store::new(buffer);
+    store.insert(String::from("foo"), 50).unwrap();
+    let key = String::from("foo");
+    b.iter(|| {
+      store.get(&key).unwrap().unwrap()
+    });
+  }
 }
