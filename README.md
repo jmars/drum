@@ -13,6 +13,27 @@ $ ack unsafe src | wc
        0       0       0
 ```
 
+# Overview
+
+Drum is an attempt to write a bitcask style key-value store entirely in rust.
+
+# Performance
+
+See the bottom of the readme for benchmarks, so far the numbers look like:
+
+## Disk
+- 740,000 reads/sec
+- 338,000 writes/sec
+
+## Memory
+- 8,700,000 reads/sec
+- 3,800,000 writes/sec
+
+### Why are writes so much slower?
+
+The insert method returns the previously stored value, so we have to do a read
+and then the write. No way to avoid this without changing the API.
+
 ```
 running 9 tests
 test tests::bench_insert ... ok
