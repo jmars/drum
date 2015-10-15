@@ -13,10 +13,6 @@ $ ack unsafe src | wc
        0       0       0
 ```
 
-# Overview
-
-Drum is an attempt to write a bitcask style key-value store entirely in rust.
-
 # Performance
 
 See the bottom of the readme for benchmarks, so far the numbers look like:
