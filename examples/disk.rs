@@ -1,12 +1,14 @@
+#![feature(plugin, custom_derive, custom_attribute)]
+#![plugin(serde_macros)]
 extern crate drum;
-extern crate rustc_serialize;
+extern crate serde;
 
 use drum::*;
 use std::io::*;
 use std::collections::*;
 use std::fs::{File, OpenOptions};
 
-#[derive(PartialEq, Ord, Eq, PartialOrd, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, Ord, Eq, PartialOrd, Serialize, Deserialize)]
 enum Value {
   Array(Vec<Value>),
   Object(BTreeMap<Value, Value>),

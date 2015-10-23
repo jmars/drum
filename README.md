@@ -18,12 +18,12 @@ $ ack unsafe src | wc
 See the bottom of the readme for benchmarks, so far the numbers look like:
 
 ## Disk
-- 700,000 reads/sec
-- 500,000 writes/sec
+- 810,000 reads/sec
+- 480,000 writes/sec
 
 ## Memory
-- 8,900,000 reads/sec
-- 5,500,000 writes/sec
+- 11,600,000 reads/sec
+- 5,100,000 writes/sec
 
 ```
 running 9 tests
@@ -41,8 +41,8 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured
 ```
 
 ```
-test tests::bench_file_get    ... bench:       1,409 ns/iter (+/- 309)
-test tests::bench_file_insert ... bench:       2,001 ns/iter (+/- 408)
-test tests::bench_get         ... bench:         112 ns/iter (+/- 1)
-test tests::bench_insert      ... bench:         182 ns/iter (+/- 23)
+test tests::bench_file_get    ... bench:       1,236 ns/iter (+/- 157)
+test tests::bench_file_insert ... bench:       2,092 ns/iter (+/- 304)
+test tests::bench_get         ... bench:          86 ns/iter (+/- 6)
+test tests::bench_insert      ... bench:         196 ns/iter (+/- 22)
 ```

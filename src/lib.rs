@@ -1,19 +1,32 @@
-#![feature(test)]
-extern crate bincode;
-extern crate rustc_serialize;
+#![feature(plugin, custom_derive, custom_attribute, test, box_syntax)]
+#![plugin(serde_macros)]
 
-use std::collections::HashMap;
-use std::collections::hash_map::Keys;
+extern crate bincode;
+extern crate serde;
+
+use std::collections::BTreeMap;
+use std::collections::btree_map::Keys;
 use std::option::Option;
 use std::io::*;
 use std::marker::PhantomData;
-use std::hash::Hash;
 use std::cell::RefCell;
-use rustc_serialize::{Encodable, Decodable};
 use bincode::SizeLimit;
-use bincode::rustc_serialize::*;
+use serde::{Serialize, Deserialize};
+use bincode::serde::{
+  deserialize_from, serialize, serialize_into, serialized_size
+};
 
-#[derive(RustcEncodable, RustcDecodable)]
+pub trait KVStore {
+  type Key;
+  type Value;
+
+  fn insert(&mut self, key: Self::Key, value: Self::Value) -> Result<()>;
+  fn get(&self, key: &Self::Key) -> Result<Option<Self::Value>>;
+  fn remove(&mut self, key: &Self::Key) -> Result<Option<Self::Value>>;
+  fn keys<'a>(&'a self) -> Keys<'a, Self::Key, u64>; 
+}
+
+#[derive(Serialize, Deserialize)]
 struct Entry<K, V> {
   key: K,
   value: V
@@ -21,22 +34,22 @@ struct Entry<K, V> {
 
 pub struct Store<K, V, F> {
   file: RefCell<F>,
-  keys: HashMap<K, u64>,
+  keys: BTreeMap<K, u64>,
   data: PhantomData<V>,
   offset: u64,
   entries: u64,
 }
 
 impl<K, V, F> Store<K, V, F>
-where K: Eq + Hash + Encodable + Decodable,
-      V: Encodable + Decodable,
+where K: Eq + Ord + Serialize + Deserialize,
+      V: Serialize + Deserialize,
       F: Read + Write + Seek
 {
   pub fn new(target: F) -> Store<K, V, F> {
-    let header_size = encoded_size(&0u64);
+    let header_size = serialized_size(&0u64);
     Store {
       file: RefCell::new(target),
-      keys: HashMap::new(),
+      keys: BTreeMap::new(),
       data: PhantomData,
       offset: header_size,
       entries: 0
@@ -52,12 +65,12 @@ where K: Eq + Hash + Encodable + Decodable,
   fn build_keys(&mut self) -> Result<()> {
     let mut file = self.file.borrow_mut();
     try!(file.seek(SeekFrom::Start(0)));
-    let entries = decode_from::<F, u64>(&mut *file, SizeLimit::Infinite).unwrap_or(0);
+    let entries = deserialize_from::<F, u64>(&mut *file, SizeLimit::Infinite).unwrap_or(0);
     self.entries = entries;
     for _ in 0..entries {
       try!(file.seek(SeekFrom::Start(self.offset)));
-      let entry = decode_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
-      let size = encoded_size(&entry) as i64;
+      let entry = deserialize_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
+      let size = serialized_size(&entry) as i64;
       self.keys.insert(entry.key, self.offset);
       self.offset = self.offset + size as u64;
     }
@@ -67,7 +80,7 @@ where K: Eq + Hash + Encodable + Decodable,
 
   fn add_entry(&mut self) -> Result<()> {
     self.entries = self.entries + 1;
-    let data = encode(&self.entries, SizeLimit::Infinite);
+    let data = serialize(&self.entries, SizeLimit::Infinite);
     match data {
       Ok(data) => {
         let mut file = self.file.borrow_mut();
@@ -90,11 +103,11 @@ where K: Eq + Hash + Encodable + Decodable,
 
     let mut file = self.file.borrow_mut();
     try!(file.seek(SeekFrom::End(0)));
-    encode_into(&entry, &mut *file, SizeLimit::Infinite).unwrap_or(());
+    serialize_into(&mut *file, &entry, SizeLimit::Infinite).unwrap_or(());
     try!(file.flush());
 
     let start = self.offset;
-    let size = encoded_size(&entry) as usize;
+    let size = serialized_size(&entry) as usize;
     self.offset = self.offset + size as u64;
     self.keys.insert(entry.key, start);
     Ok(())
@@ -106,7 +119,7 @@ where K: Eq + Hash + Encodable + Decodable,
       Some(loc) => {
         let mut file = self.file.borrow_mut();
         try!(file.seek(SeekFrom::Start(*loc)));
-        let entry = decode_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
+        let entry = deserialize_from::<F, Entry<K, V>>(&mut *file, SizeLimit::Infinite).unwrap();
         try!(file.seek(SeekFrom::End(0)));
         Ok(Some(entry.value))
       }
@@ -130,6 +143,31 @@ where K: Eq + Hash + Encodable + Decodable,
   }
 }
 
+impl<K, V, F> KVStore for Store<K, V, F>
+where K: Eq + Ord + Serialize + Deserialize,
+      V: Serialize + Deserialize,
+      F: Read + Write + Seek
+{
+  type Key = K;
+  type Value = V;
+
+  fn insert(&mut self, key: Self::Key, value: Self::Value) -> Result<()> {
+    self.insert(key, value)
+  }
+
+  fn get(&self, key: &Self::Key) -> Result<Option<Self::Value>> {
+    self.get(key)
+  }
+
+  fn remove(&mut self, key: &Self::Key) -> Result<Option<Self::Value>> {
+    self.remove(key)
+  }
+
+  fn keys<'a>(&'a self) -> Keys<'a, Self::Key, u64> {
+    self.keys()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   extern crate test;
@@ -144,7 +182,7 @@ mod tests {
 
   #[test]
   fn insert_get() {
-    #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct Test {
       num: u64,
       string: String
