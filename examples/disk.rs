@@ -2,13 +2,11 @@
 #![plugin(serde_macros)]
 extern crate drum;
 extern crate serde;
-extern crate bufstream;
 
 use drum::*;
 use std::io::*;
 use std::collections::*;
 use std::fs::{OpenOptions};
-use bufstream::BufStream;
 
 #[derive(PartialEq, Ord, Eq, PartialOrd, Serialize, Deserialize)]
 enum Value {
@@ -21,13 +19,12 @@ enum Value {
 fn run() -> Result<()> {
   let msg = "Hello World";
   let file =
-    BufStream::new(
       try!(OpenOptions::new()
       .read(true)
       .write(true)
       .create(true)
       .append(true)
-      .open("test.db")));
+      .open("test.db"));
 
   let mut store = try!(Store::reopen(file));
 

@@ -1,6 +1,6 @@
 [package]
 name = "drum"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Jaye Marshall <marshall.jaye@gmail.com>"]
 description = "A bitcask inspired storage api for rust."
 license = "MIT"
@@ -14,4 +14,3 @@ serde_macros = "0.6.*"
 
 [dev-dependencies]
 tempfile = "*"
-bufstream = { git = "https://github.com/jmars/bufstream.git" }
