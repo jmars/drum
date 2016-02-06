@@ -23,7 +23,7 @@ pub trait KVStore {
   fn insert(&mut self, key: Self::Key, value: Self::Value) -> Result<()>;
   fn get(&self, key: &Self::Key) -> Result<Option<Self::Value>>;
   fn remove(&mut self, key: &Self::Key) -> Result<Option<Self::Value>>;
-  fn keys<'a>(&'a self) -> Keys<'a, Self::Key, u64>; 
+  fn keys<'a>(&'a self) -> Keys<'a, Self::Key, u64>;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -37,7 +37,7 @@ pub struct Store<K, V, F> {
   keys: BTreeMap<K, u64>,
   data: PhantomData<V>,
   offset: u64,
-  entries: u64,
+  entries: u64
 }
 
 impl<K, V, F> Store<K, V, F>
@@ -172,13 +172,12 @@ where K: Eq + Ord + Serialize + Deserialize,
 mod tests {
   extern crate test;
   extern crate tempfile;
-  extern crate bufstream;
 
   use super::*;
   use std::io::*;
+  use std::fs::File;
   use self::test::Bencher;
-  use self::tempfile::TempFile;
-  use self::bufstream::BufStream;
+  use self::tempfile::tempfile;
 
   #[test]
   fn insert_get() {
@@ -270,9 +269,8 @@ mod tests {
 
   #[bench]
   fn bench_file_insert(b: &mut Bencher) {
-    let buffer = TempFile::new().unwrap();
-    let writer = BufStream::new(buffer);
-    let mut store: Store<u64, u64, BufStream<TempFile>> = Store::new(writer);
+    let buffer = tempfile().unwrap();
+    let mut store: Store<u64, u64, File> = Store::new(buffer);
     b.iter(|| {
       let _ = store.insert(10, 50);
     });
@@ -280,9 +278,8 @@ mod tests {
 
   #[bench]
   fn bench_file_get(b: &mut Bencher) {
-    let buffer = TempFile::new().unwrap();
-    let reader = BufStream::new(buffer);
-    let mut store: Store<u64, u64, BufStream<TempFile>> = Store::new(reader);
+    let buffer = tempfile().unwrap();
+    let mut store: Store<u64, u64, File> = Store::new(buffer);
     store.insert(10, 50).unwrap();
     b.iter(|| {
       let _ = store.get(&10);
