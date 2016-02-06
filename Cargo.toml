@@ -13,4 +13,4 @@ serde = "0.6.*"
 serde_macros = "0.6.*"
 
 [dev-dependencies]
-tempfile = "*"
+tempfile = "2.0.*"
