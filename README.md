@@ -14,15 +14,15 @@ $ ack unsafe src | wc
        0       0       0
 ```
 
-# Performance
+## Performance
 
 See the bottom of the readme for benchmarks, so far the numbers look like:
 
-## Disk
+### Disk
 - 810,000 reads/sec
 - 480,000 writes/sec
 
-## Memory
+### Memory
 - 11,600,000 reads/sec
 - 5,100,000 writes/sec
 
