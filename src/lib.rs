@@ -39,6 +39,7 @@ struct Entry<K, V> {
   value: V
 }
 
+#[derive(Debug)]
 pub struct Store<K, V, F> {
   file: RefCell<F>,
   keys: BTreeMap<K, u64>,
